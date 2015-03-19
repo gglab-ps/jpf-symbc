@@ -231,13 +231,15 @@
 
     <property name="junit.usefile" value="true"/>
 
-    <junit printsummary="withOutAndErr" showoutput="off" haltonfailure="yes"
+    <junit printsummary="withOutAndErr" showoutput="off" haltonfailure="no"
            fork="yes" forkmode="perTest" maxmemory="1024m">
       <formatter type="plain" usefile="${junit.usefile}"/>
 
       <classpath>
         <path refid="lib.path"/>
-
+            <fileset dir="../">
+  	    <include name="*.jar"/>
+    </fileset>
         <pathelement location="build/tests"/>
         <pathelement location="build/classes"/>
         <pathelement location="build/annotations"/>

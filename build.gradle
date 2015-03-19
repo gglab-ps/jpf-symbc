@@ -1,0 +1,166 @@
+allprojects {
+
+    apply plugin: 'java'
+
+    sourceCompatibility = JavaVersion.VERSION_1_7
+    targetCompatibility = JavaVersion.VERSION_1_7
+    repositories {
+        mavenCentral()
+        mavenLocal()
+    }
+
+    dependencies {
+        testCompile 'junit:junit:4.12'
+    }
+
+
+    group = 'gov.nasa.jpf.jpf-symbc'
+
+    version = '0.1'
+}
+
+subprojects {
+    apply plugin: 'maven'
+}
+
+configurations {
+    examplesClasspath.extendsFrom compile
+    testClasspath.extendsFrom compile, testCompile
+
+    jpf_symbc_annotations {
+        transitive = false
+    }
+
+    jpf_symbc_classes {
+        extendsFrom(jpf_symbc_annotations)
+        jpf_symbc_classes.transitive = false
+    }
+
+    jpf_symbc {
+        extendsFrom(jpf_symbc_annotations)
+        jpf_symbc.transitive = false
+    }
+
+    runnable {
+        transitive = false
+    }
+    
+    distArchives
+
+}
+
+dependencies {
+    compile 'junit:junit:4.12'
+    compile project(':annotations')
+    compile project(':classes')
+    compile project(':main')
+    testCompile project(':peers')
+    testRuntime project(':peers')
+    testRuntime project(':main')
+    testRuntime project(':annotations')
+    testRuntime project(':classes')
+    testRuntime files('../jpf-core/build/jpf.jar', '../jpf-core/build/jpf-annotations.jar', 'bin')
+    testRuntime files('tools/RunJPF.jar','tools/RunTest.jar','lib/opt4j-2.4.jar')
+    testRuntime 'commons-lang:commons-lang:2.4'
+    testRuntime 'commons-math:commons-math:1.2'
+    testRuntime fileTree(dir: 'lib', include: '*.jar')
+    jpf_symbc_annotations project(':annotations')
+    jpf_symbc_classes project(':classes')
+    jpf_symbc project(':peers')
+    jpf_symbc project(':main')
+    runnable project(':main')
+}
+
+sourceSets {
+    examples {
+        java {
+            compileClasspath = configurations.examplesClasspath
+            srcDirs = ['src/examples']
+            output.classesDir = 'build/examples'
+        }
+    }
+
+    test {
+        java {
+            compileClasspath += sourceSets.examples.output
+            runtimeClasspath += jar.outputs.files
+            srcDirs = ['src/tests']
+            output.classesDir = 'build/tests'
+        }
+    }
+}
+
+task jpf_symbc(type: Jar) {
+    from {
+        configurations.jpf_symbc.collect({ zipTree(it) })
+    }
+    archiveName = 'jpf-symbc.jar'
+    with jar
+}
+
+task jpf_symbc_annotations(type: Jar, dependsOn: project(':annotations').assemble) {
+    from zipTree(configurations.jpf_symbc_annotations.singleFile)
+    archiveName = 'jpf-symbc-annotations.jar'
+    with jar
+}
+
+task jpf_symbc_classes(type: Jar) {
+    from {
+        configurations.jpf_symbc_classes.collect({ zipTree(it) })
+    }
+    archiveName = 'jpf-symbc-classes.jar'
+    with jar
+}
+
+tasks.withType(Jar) {
+    destinationDir = project.buildDir
+}
+
+task distAssemble(dependsOn: [subprojects.assemble, tasks.withType(Jar)]) {
+    shouldRunAfter subprojects.assemble
+}
+
+test {
+    outputs.upToDateWhen { false }
+    scanForTestClasses = false
+    include '**/Test*.*'
+    exclude '**/JPF_*.class'
+    exclude '**/TestBitwise*.class'
+    exclude '**/TestCoverage.class'  
+    exclude '**/TestDIV.class' 
+    exclude '**/TestExJPF.class' 
+    exclude '**/TestLazy*.class' 
+    exclude '**/TestLazy*.class' 
+    exclude '**/TestPathCondition.class' 
+    exclude '**/TestStringBuilder.class'
+    exclude '**/strings/*.class'
+    exclude '/gov/nasa/jpf/symbc/strings/*.class'
+    exclude '**/Test*$*.class'
+    exclude '**/TestSymbolicListener.class'
+    exclude '**/TestSymbolicOutput.class'
+    exclude '**/TestSymbolicJPF.class'
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+    // uncomment this to don't fail build on error
+    //ignoreFailures = true
+    reports {
+        html.enabled = true
+    }
+    test.dependsOn(distAssemble)
+    test.shouldRunAfter distAssemble
+}
+
+
+assemble {
+    onlyIf {
+        false
+    }
+}
+
+jar {
+    onlyIf {
+        false
+    }
+}
+
+apply plugin: 'distribution'

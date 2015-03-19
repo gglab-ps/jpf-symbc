@@ -1,0 +1,9 @@
+rootProject.name = 'jpf-symbc'
+
+include 'annotations'
+
+include 'classes'
+
+include 'main'
+
+include 'peers'
