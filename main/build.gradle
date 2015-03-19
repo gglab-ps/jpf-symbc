@@ -1,0 +1,20 @@
+dependencies {
+    compile 'gov.nasa.jpf.jpf-core:main:0.1'
+    compile files(new File(rootProject.projectDir, "lib/iasolver.jar"))
+    compile files(new File(rootProject.projectDir, "lib/com.microsoft.z3.jar"))
+    compile files(new File(rootProject.projectDir, "lib/green.jar"))
+    compile files(new File(rootProject.projectDir, "lib/automaton.jar"))
+    compile files(new File(rootProject.projectDir, "lib/hampi.jar"))
+    compile files(new File(rootProject.projectDir, "lib/coral.jar"))
+    compile files(new File(rootProject.projectDir, "lib/libcvc3.jar"))
+    compile files(new File(rootProject.projectDir, "lib/aima-core.jar"))
+    compile files(new File(rootProject.projectDir, "lib/org.sat4j.core.jar"))
+    compile files(new File(rootProject.projectDir, "lib/org.sat4j.pb.jar"))
+    compile files(new File(rootProject.projectDir, "lib/choco-solver-2.1.1-20100709.142532-2.jar"))
+    compile files(new File(rootProject.projectDir, "lib/choco-1_2_04.jar"))
+    compile files(new File(rootProject.projectDir, "lib/yicesapijava.jar"))
+    compile files(new File(rootProject.projectDir, "lib/choco-1_2_04.jar"))
+    compile files(new File(rootProject.projectDir, "lib/string.jar"))
+    compile files(new File(rootProject.projectDir, "lib/grappa.jar"))
+    compile 'commons-lang:commons-lang:2.4'
+}
