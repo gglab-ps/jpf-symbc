@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/gglab-ps/jpf-symbc.svg?branch=develop)](https://travis-ci.org/gglab-ps/jpf-symbc)
+
 Symbolic (Java) PathFinder:
 ---------------------------
 
