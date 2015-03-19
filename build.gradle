@@ -44,7 +44,7 @@ configurations {
     runnable {
         transitive = false
     }
-    
+
     distArchives
 
 }
@@ -60,7 +60,7 @@ dependencies {
     testRuntime project(':annotations')
     testRuntime project(':classes')
     testRuntime files('../jpf-core/build/jpf.jar', '../jpf-core/build/jpf-annotations.jar', 'bin')
-    testRuntime files('tools/RunJPF.jar','tools/RunTest.jar','lib/opt4j-2.4.jar')
+    testRuntime files('tools/RunJPF.jar', 'tools/RunTest.jar', 'lib/opt4j-2.4.jar')
     testRuntime 'commons-lang:commons-lang:2.4'
     testRuntime 'commons-math:commons-math:1.2'
     testRuntime fileTree(dir: 'lib', include: '*.jar')
@@ -126,12 +126,12 @@ test {
     include '**/Test*.*'
     exclude '**/JPF_*.class'
     exclude '**/TestBitwise*.class'
-    exclude '**/TestCoverage.class'  
-    exclude '**/TestDIV.class' 
-    exclude '**/TestExJPF.class' 
-    exclude '**/TestLazy*.class' 
-    exclude '**/TestLazy*.class' 
-    exclude '**/TestPathCondition.class' 
+    exclude '**/TestCoverage.class'
+    exclude '**/TestDIV.class'
+    exclude '**/TestExJPF.class'
+    exclude '**/TestLazy*.class'
+    exclude '**/TestLazy*.class'
+    exclude '**/TestPathCondition.class'
     exclude '**/TestStringBuilder.class'
     exclude '**/strings/*.class'
     exclude '/gov/nasa/jpf/symbc/strings/*.class'
@@ -164,3 +164,46 @@ jar {
 }
 
 apply plugin: 'distribution'
+task makeAssemble(type: Copy) {
+    dependsOn distAssemble
+    into("$buildDir/dist")
+    from { 'jpf.properties' }
+    into('build') {
+        from {
+            tasks.withType(Jar).collect {
+                it.archivePath
+            }
+        }
+    }
+    into('lib') {
+        from { 'lib' }
+    }
+    into('tools') {
+        from { 'tools' }
+    }
+    into('bin') {
+        from { 'bin' }
+    }
+
+}
+
+distZip {
+    distZip.dependsOn makeAssemble
+    into('jpf-symbc') {
+        from {
+            makeAssemble.outputs
+        }
+    }
+}
+
+distTar {
+    distTar.dependsOn makeAssemble
+    into('jpf-symbc') {
+        from {
+            makeAssemble.outputs
+        }
+    }
+}
+
+installDist.dependsOn distZip
+installDist.dependsOn distTar
