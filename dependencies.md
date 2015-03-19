@@ -1,3 +1,10 @@
+First Header | Second Header
+------------ | -------------
+Content from cell 1 | Content from cell 2
+Content in the first column | Content in the second column
+
+
+
 original lib name|version (from jar file) | web/repo location|latest version|remarks | license 
 -------------------|-|-------------------|------|--------|-----------
 aima-core.jar|0.9.9|https://github.com/aima-java/aima-java | 0.11.1 | maven | MIT
