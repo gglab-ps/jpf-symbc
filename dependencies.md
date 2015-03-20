@@ -1,5 +1,5 @@
-original lib name|version (from jar file) | web/repo location|latest version|remarks | license 
--------------------|-|-------------------|------|--------|-----------
+Jar name | version | Web link/repository location | latest version | Remarks | License
+------------ | ------------- | ------------- | ------------- | ------------- | -------------
 aima-core.jar|0.9.9|https://github.com/aima-java/aima-java | 0.11.1 | maven | MIT
 automaton.jar|??|http://www.brics.dk/automaton/|1.11-8|latest version from 2011|BSD
 bcel.jar|??|http://commons.apache.org/proper/commons-bcel|5.2||Apache2.0

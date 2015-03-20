@@ -1,0 +1,12 @@
+# idea
+.idea/
+
+.externalToolBuilders/
+#gradle dir
+.gradle/
+#build dirs
+build/
+annotations/build/
+classes/build/
+main/build/
+peers/build/
