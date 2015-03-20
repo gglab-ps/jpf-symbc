@@ -17,3 +17,32 @@ dependencies {
     compile files(new File(rootProject.projectDir, "lib/grappa.jar"))
     compile 'commons-lang:commons-lang:2.4'
 }
+
+task mainWithDependencies(type: Jar) {
+    from {
+        configurations.compile.collect({ zipTree(it) })
+    }
+    baseName = 'main-all'
+    with jar
+}
+
+jar {
+    dependsOn mainWithDependencies
+}
+
+artifacts {
+    archives mainWithDependencies
+}
+
+install {
+    repositories.mavenInstaller {
+        addFilter('main-all') {
+            artifact, file -> artifact.name == 'main-all'
+        }
+        addFilter('main') {
+            artifact, file -> artifact.name == 'main'
+        }
+        pom('main-all').artifactId = 'main-all'
+        pom('main').artifactId = 'main'
+    }
+}
