@@ -1,7 +1,11 @@
 # idea
 .idea/
+
 .externalToolBuilders/
-.build/
+#gradle dir
+.gradle/
+#build dirs
+build/
 annotations/build/
 classes/build/
 main/build/
