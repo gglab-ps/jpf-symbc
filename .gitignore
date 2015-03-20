@@ -1,0 +1,8 @@
+# idea
+.idea/
+.externalToolBuilders/
+.build/
+annotations/build/
+classes/build/
+main/build/
+peers/build/
