@@ -16,11 +16,14 @@ dependencies {
     compile files(new File(rootProject.projectDir, "lib/string.jar"))
     compile files(new File(rootProject.projectDir, "lib/grappa.jar"))
     compile 'commons-lang:commons-lang:2.4'
+    runtime files(new File(rootProject.projectDir, "lib/opt4j-2.4.jar"))
+    runtime 'commons-math:commons-math:1.2'
 }
 
 task mainWithDependencies(type: Jar) {
     from {
         configurations.compile.collect({ zipTree(it) })
+        configurations.runtime.collect({ zipTree(it) })
     }
     baseName = 'main-all'
     with jar
