@@ -371,9 +371,7 @@ public class SymbolicAbstractionListener extends PropertyListenerAdapter{
 					// Create a new SequenceChoiceGenerator.
 					// this is just to store the information
 					// regarding the executed method.
-					SequenceChoiceGenerator cg = new SequenceChoiceGenerator(shortName);
-					cg.setArgValues(argValues);
-					cg.setArgAttributes(attributes);
+					SequenceChoiceGenerator cg = SequenceChoiceGenerator.newInstance(shortName,argValues,attributes);
 					// Does not actually make any choice
 					ss.setNextChoiceGenerator(cg);
 					// nothing to do as there are no choices.

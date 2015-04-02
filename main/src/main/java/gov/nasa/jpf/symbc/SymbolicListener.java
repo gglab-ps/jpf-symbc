@@ -31,7 +31,6 @@ import gov.nasa.jpf.report.PublisherExtension;
 import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.symbc.bytecode.BytecodeUtils;
 import gov.nasa.jpf.symbc.bytecode.INVOKESTATIC;
-import gov.nasa.jpf.symbc.concolic.PCAnalyzer;
 import gov.nasa.jpf.symbc.numeric.*;
 import gov.nasa.jpf.util.Pair;
 import gov.nasa.jpf.vm.*;
@@ -117,7 +116,7 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
     {
 
         VM vm = search.getVM();
-        final PCChoiceGenerator choiceGenerator = searchForPCChoiceGenerator(vm.getChoiceGenerator());
+        final PCChoiceGenerator choiceGenerator = SymbolicListenersUtils.searchForPCChoiceGenerator(vm.getChoiceGenerator());
         if (choiceGenerator == null) {
             return;
         }
@@ -134,7 +133,7 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
         //result._addDet(Comparator.EQ, sym_err, sym_value);
         //solve the path condition, then print it
         //pc.solve();
-        solve(pathCondition);
+        SymbolicListenersUtils.solve(pathCondition);
 
         Pair<PathCondition, String> pcPair = new Pair<PathCondition, String>(pathCondition, error);//(pc.toString(),error);
 
@@ -212,7 +211,7 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
 
         if (( ( BytecodeUtils.isClassSymbolic(conf, className, methodInfo, methodName) )
                 || BytecodeUtils.isMethodSymbolic(conf, methodInfo.getFullName(), numberOfArgs, null) )) {
-            PCChoiceGenerator choiceGenerator = searchForPCChoiceGenerator(vm.getChoiceGenerator());
+            PCChoiceGenerator choiceGenerator = SymbolicListenersUtils.searchForPCChoiceGenerator(vm.getChoiceGenerator());
             if (choiceGenerator == null) {
                 return;
             }
@@ -222,7 +221,7 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
             }
             //pc.solve(); //we only solve the pc
 
-            solve(pathCondition);
+            SymbolicListenersUtils.solve(pathCondition);
 
             if (!PathCondition.flagSolved) {
                 return;
@@ -390,39 +389,10 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
         }
     }
 
-    /**
-     * Looks for {@link PCChoiceGenerator} in {@link ChoiceGenerator} chain and returns it, if does not find any then returning <b>null</b>
-     *
-     * @param choiceGenerator
-     * @return
-     */
-    private PCChoiceGenerator searchForPCChoiceGenerator(final ChoiceGenerator<?> choiceGenerator)
-    {
-        if (choiceGenerator instanceof PCChoiceGenerator) {
-            return (PCChoiceGenerator)choiceGenerator;
-        }
-        ChoiceGenerator<?> previous = choiceGenerator.getPreviousChoiceGenerator();
-        while (!( ( previous == null ) || ( previous instanceof PCChoiceGenerator ) )) {
-            previous = previous.getPreviousChoiceGenerator();
-        }
-        return previous == null ? null : (PCChoiceGenerator)previous;
-    }
-
-      /*
+    /*
        * The way this method works is specific to the format of the methodSummary
        * data structure
        */
-
-    private void solve(PathCondition pathCondition)
-    {
-        if (SymbolicInstructionFactory.concolicMode) { //TODO: cleaner
-            SymbolicConstraintsGeneral solver = new SymbolicConstraintsGeneral();
-            PCAnalyzer pa = new PCAnalyzer();
-            pa.solve(pathCondition, solver);
-        } else {
-            pathCondition.solve();
-        }
-    }
 
     interface ISymbolicValue<T>
     {
@@ -586,7 +556,7 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
             return builder.toString();
         }
 
-        private static List<ISymbolicValue<?>> readSymbolicValues(JVMInvokeInstruction invokeInstruction, MethodInfo methodInfo, StackFrame sf, int
+        private static List<ISymbolicValue<?>> readSymbolicValues(JVMInvokeInstruction invokeInstruction, MethodInfo methodInfo, StackFrame stackFrame, int
                 numberOfArgs,
                 byte[]
                         argTypes)
@@ -607,9 +577,8 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
             }
 
             for (int i = 0; i < numberOfArgs; i++) {
-                Expression expLocal = (Expression)sf.getLocalAttr(sfIndex);
-                if (expLocal != null) // symbolic
-                {
+                Expression expLocal = (Expression)stackFrame.getLocalAttr(sfIndex);
+                if (expLocal != null) { // symbolic
                     results.add(new ISymbolicValue.Symbolic(expLocal));
                 } else {
                     results.add(new ISymbolicValue.Concrete(argsInfo[namesIndex]));

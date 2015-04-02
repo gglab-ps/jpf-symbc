@@ -15,16 +15,15 @@
 // THE SUBJECT SOFTWARE WILL BE ERROR FREE, OR ANY WARRANTY THAT
 // DOCUMENTATION, IF PROVIDED, WILL CONFORM TO THE SUBJECT SOFTWARE.
 //
+
 package gov.nasa.jpf.symbc.sequences;
 
 import gov.nasa.jpf.vm.ChoiceGenerator;
 
 
-
 /**
-* @author pcorina
-*
-*/
+ * @author pcorina
+ */
 
 // I propose the following
 // create a new choice generator that records the names of the methods that are executed
@@ -33,44 +32,52 @@ import gov.nasa.jpf.vm.ChoiceGenerator;
 // it will not make any choices, but it will force JPF to remember this info on the current path
 // so that it is easy to reconstruct and print it
 // then we will not really need any more maps to print the information
-public class SequenceChoiceGenerator extends gov.nasa.jpf.vm.choice.IntIntervalGenerator {
 
-  private String methodShortName;
-  private Object [] argValues;
-  private Object [] attributes;
-  
-  @Override
-  public ChoiceGenerator randomize() {
-      // This doesn't make choices anyway, no need to change.
-      return this;
-  }
-  
-  // will always make only one choice
-@SuppressWarnings("deprecation")
-public SequenceChoiceGenerator(String _methodShortName) {
-      super(0, 0);
-      methodShortName = _methodShortName;
-  }
+// TODO grzesuav : class should be made immutable
+public class SequenceChoiceGenerator extends gov.nasa.jpf.vm.choice.IntIntervalGenerator
+{
 
+    private final Object[] _argValues;
 
-  public Object [] getArgValues() {
-      return argValues;
-  }
+    private final Object[] _attributes;
 
-  public void setArgValues(Object [] _argValues) {
-      argValues = _argValues;;
-  }
+    private final String _methodShortName;
 
-  public Object [] getArgAttributes() {
-      return attributes;
-  }
+    // will always make only one choice
+    @SuppressWarnings("deprecation")
+    private SequenceChoiceGenerator(String methodShortName, Object[] argValues, Object[] attributes)
+    {
+        super(0, 0);
+        _methodShortName = methodShortName;
+        _argValues = argValues;
+        _attributes = attributes;
+    }
 
-  public void setArgAttributes(Object [] _attributes) {
-      attributes = _attributes;
-  }
+    public static SequenceChoiceGenerator newInstance(String sMethodShortName, final Object[] argumentsValues, final Object[] attributes)
+    {
+        return new SequenceChoiceGenerator(sMethodShortName, argumentsValues, attributes);
+    }
 
-  public String getMethodShortName() {
-	return methodShortName;
-  }
+    public Object[] getArgAttributes()
+    {
+        return _attributes;
+    }
+
+    public Object[] getArgValues()
+    {
+        return _argValues;
+    }
+
+    public String getMethodShortName()
+    {
+        return _methodShortName;
+    }
+
+    @Override
+    public ChoiceGenerator randomize()
+    {
+        // This doesn't make choices anyway, no need to change.
+        return this;
+    }
 
 }
