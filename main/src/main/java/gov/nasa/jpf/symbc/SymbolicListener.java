@@ -37,10 +37,7 @@ import gov.nasa.jpf.util.Pair;
 import gov.nasa.jpf.vm.*;
 
 import java.io.PrintWriter;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.StringTokenizer;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 //import gov.nasa.jpf.symbc.numeric.SymbolicInteger;
@@ -105,14 +102,12 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
     public void instructionExecuted(VM vm, ThreadInfo currentThread, Instruction nextInstruction, Instruction executedInstruction)
     {
         if (!vm.getSystemState().isIgnored()) {
-            Instruction instruction = executedInstruction;
             //	SystemState ss = vm.getSystemState();
-            ThreadInfo threadInfo = currentThread;
             Config conf = vm.getConfig();
-            if (instruction instanceof JVMInvokeInstruction) {
-                executeInvokeInstruction((JVMInvokeInstruction)instruction, threadInfo, conf);
-            } else if (instruction instanceof JVMReturnInstruction) {
-                executeReturnInstruction(vm, (JVMReturnInstruction)instruction, threadInfo, conf);
+            if (executedInstruction instanceof JVMInvokeInstruction) {
+                executeInvokeInstruction((JVMInvokeInstruction)executedInstruction, currentThread, conf);
+            } else if (executedInstruction instanceof JVMReturnInstruction) {
+                executeReturnInstruction(vm, (JVMReturnInstruction)executedInstruction, currentThread, conf);
             }
         }
     }
@@ -122,38 +117,33 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
     {
 
         VM vm = search.getVM();
-        ChoiceGenerator<?> cg = vm.getChoiceGenerator();
-        cg = searchForPCChoiceGenerator(cg);
-        if (( cg instanceof PCChoiceGenerator ) &&
-                ( (PCChoiceGenerator)cg ).getCurrentPC() != null) {
-            PathCondition pc = ( (PCChoiceGenerator)cg ).getCurrentPC();
-            String error = search.getLastError().getDetails();
-            error = "\"" + error.substring(0, error.indexOf("\n")) + "...\"";
-            // C: not clear where result was used here -- to review
-            //PathCondition result = new PathCondition();
-            //IntegerExpression sym_err = new SymbolicInteger("ERROR");
-            //IntegerExpression sym_value = new SymbolicInteger(error);
-            //result._addDet(Comparator.EQ, sym_err, sym_value);
-            //solve the path condition, then print it
-            //pc.solve();
-            if (SymbolicInstructionFactory.concolicMode) { //TODO: cleaner
-                SymbolicConstraintsGeneral solver = new SymbolicConstraintsGeneral();
-                PCAnalyzer pa = new PCAnalyzer();
-                pa.solve(pc, solver);
-            } else {
-                pc.solve();
-            }
-
-            Pair<String, String> pcPair = new Pair<String, String>(pc.toString(), error);//(pc.toString(),error);
-
-            //String _methodName = vm.getLastInstruction().getMethodInfo().getName();
-            MethodSummary methodSummary = _methodSummaries.get(currentMethodName);
-            methodSummary.addPathCondition(pcPair);
-            _methodSummaries.put(currentMethodName, methodSummary);
-            System.out.println("Property Violated: PC is " + pc.toString());
-            System.out.println("Property Violated: result is  " + error);
-            System.out.println("****************************");
+        final PCChoiceGenerator choiceGenerator = searchForPCChoiceGenerator(vm.getChoiceGenerator());
+        if (choiceGenerator == null) {
+            return;
         }
+        PathCondition pathCondition = choiceGenerator.getCurrentPC();
+        if (pathCondition == null) {
+            return;
+        }
+        String error = search.getLastError().getDetails();
+        error = "\"" + error.substring(0, error.indexOf("\n")) + "...\"";
+        // C: not clear where result was used here -- to review
+        //PathCondition result = new PathCondition();
+        //IntegerExpression sym_err = new SymbolicInteger("ERROR");
+        //IntegerExpression sym_value = new SymbolicInteger(error);
+        //result._addDet(Comparator.EQ, sym_err, sym_value);
+        //solve the path condition, then print it
+        //pc.solve();
+        solve(pathCondition);
+
+        Pair<PathCondition, String> pcPair = new Pair<PathCondition, String>(pathCondition, error);//(pc.toString(),error);
+
+        //String _methodName = vm.getLastInstruction().getMethodInfo().getName();
+        MethodSummary methodSummary = _methodSummaries.get(currentMethodName);
+        methodSummary.addPathCondition(pcPair);
+        System.out.println("Property Violated: PC is " + pathCondition.toString());
+        System.out.println("Property Violated: result is  " + error);
+        System.out.println("****************************");
         //}
     }
 
@@ -170,21 +160,22 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
         publisher.publishTopicStart("Method Summaries");
         Iterator<Map.Entry<String, MethodSummary>> it = _methodSummaries.entrySet().iterator();
         while (it.hasNext()) {
+            pw.println();
+            pw.println();
+            pw.println();
             Map.Entry<String, MethodSummary> me = it.next();
             MethodSummary methodSummary = me.getValue();
-            pw.println();
-            pw.println();
-            pw.println(me.getKey());
-            printMethodSummary(pw, methodSummary);
+            Printer printer = new Printer(pw, methodSummary);
+            printer.printSummary();
         }
 
-        publisher.publishTopicStart("Method Summaries (HTML)");
-        it = _methodSummaries.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<String, MethodSummary> me = it.next();
-            MethodSummary methodSummary = me.getValue();
-            printMethodSummaryHTML(pw, methodSummary);
-        }
+        //        publisher.publishTopicStart("Method Summaries (HTML)");
+        //        it = _methodSummaries.entrySet().iterator();
+        //        while (it.hasNext()) {
+        //            Map.Entry<String, MethodSummary> me = it.next();
+        //            MethodSummary methodSummary = me.getValue();
+        //            printMethodSummaryHTML(pw, methodSummary);
+        //        }
     }
 
     private void executeInvokeInstruction(JVMInvokeInstruction instruction, ThreadInfo threadInfo, Config configuration)
@@ -230,13 +221,8 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
                 return;
             }
             //pc.solve(); //we only solve the pc
-            if (SymbolicInstructionFactory.concolicMode) { //TODO: cleaner
-                SymbolicConstraintsGeneral solver = new SymbolicConstraintsGeneral();
-                PCAnalyzer pa = new PCAnalyzer();
-                pa.solve(pathCondition, solver);
-            } else {
-                pathCondition.solve();
-            }
+
+            solve(pathCondition);
 
             if (!PathCondition.flagSolved) {
                 return;
@@ -246,24 +232,11 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
 
             ReturnObject returnObject = processInstructions(instruction, threadInfo);
 
-            //pc.solve();
-            // not clear why this part is necessary
-/*
-                    if (SymbolicInstructionFactory.concolicMode) { //TODO: cleaner
-                        SymbolicConstraintsGeneral solver = new SymbolicConstraintsGeneral();
-                        PCAnalyzer pa = new PCAnalyzer();
-                        pa.solve(pc,solver);
-                    }
-                    else
-                        pc.solve();
-*/
-
-            String pcString = pathCondition.toString();
-            Pair<String, String> pcPair = new Pair<String, String>(pcString, returnObject.getString());
+            Pair<PathCondition, String> pcPair = new Pair<PathCondition, String>(pathCondition, returnObject.getString());
             String longName = methodInfo.getLongName();
             MethodSummary methodSummary = _methodSummaries.get(longName);
-            Vector<Pair> pcs = methodSummary.getPathConditions();
-            if (( !pcs.contains(pcPair) ) && ( pcString.contains("SYM") )) {
+            List<Pair<PathCondition, String>> pcs = methodSummary.getPathConditions();
+            if (( !pcs.contains(pcPair) ) && ( pathCondition.toString().contains("SYM") )) {
                 methodSummary.addPathCondition(pcPair);
             }
 
@@ -282,166 +255,15 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
         }
     }
 
-    private ReturnObject processInstructions(JVMReturnInstruction instruction, ThreadInfo threadInfo)
-    {
-        if (instruction instanceof IRETURN) {
-            IRETURN ireturn = (IRETURN)instruction;
-            int returnValue = ireturn.getReturnValue();
-            IntegerExpression returnAttr = (IntegerExpression)ireturn.getReturnAttr(threadInfo);
-            if (returnAttr != null) {
-                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
-            } else { // concrete
-                return ReturnObject.from(String.valueOf(returnValue), new IntegerConstant(returnValue));
-            }
-        } else if (instruction instanceof LRETURN) {
-            LRETURN lreturn = (LRETURN)instruction;
-            long returnValue = lreturn.getReturnValue();
-            IntegerExpression returnAttr = (IntegerExpression)lreturn.getReturnAttr(threadInfo);
-            if (returnAttr != null) {
-                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
-            } else { // concrete
-                return ReturnObject.from(String.valueOf(returnValue), new IntegerConstant((int)returnValue));
-            }
-        } else if (instruction instanceof DRETURN) {
-            DRETURN dreturn = (DRETURN)instruction;
-            double returnValue = dreturn.getReturnValue();
-            RealExpression returnAttr = (RealExpression)dreturn.getReturnAttr(threadInfo);
-            if (returnAttr != null) {
-                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
-            } else { // concrete
-                return ReturnObject.from(String.valueOf(returnValue), new RealConstant(returnValue));
-            }
-        } else if (instruction instanceof FRETURN) {
-            FRETURN freturn = (FRETURN)instruction;
-            double returnValue = freturn.getReturnValue();
-            RealExpression returnAttr = (RealExpression)freturn.getReturnAttr(threadInfo);
-            if (returnAttr != null) {
-                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
-            } else { // concrete
-                return ReturnObject.from(String.valueOf(returnValue), new RealConstant(returnValue));
-            }
-
-        } else if (instruction instanceof ARETURN) {
-            ARETURN areturn = (ARETURN)instruction;
-            IntegerExpression returnAttr = (IntegerExpression)areturn.getReturnAttr(threadInfo);
-            if (returnAttr != null) {
-                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
-            } else {// concrete
-                Object val = areturn.getReturnValue(threadInfo);
-                //DynamicElementInfo val = (DynamicElementInfo)areturn.getReturnValue(threadInfo);
-                String tmp = String.valueOf(val);
-                tmp = tmp.substring(tmp.lastIndexOf('.') + 1);
-                return ReturnObject.from(String.valueOf(val), new SymbolicInteger(tmp));
-
-            }
-        } else {//other types of return
-            return ReturnObject.from("-- ", null);
-        }
-    }
-
-
-    //TODO:  needs to be changed not to use String representations
-    private void printMethodSummary(PrintWriter pw, MethodSummary methodSummary)
-    {
-        System.out.println("Inputs: " + methodSummary.getSymValues());
-        Vector<Pair> pathConditions = methodSummary.getPathConditions();
-        if (pathConditions.size() > 0) {
-            Iterator it = pathConditions.iterator();
-            String allTestCases = EMPTY;
-            while (it.hasNext()) {
-                String testCase = methodSummary.getMethodName() + "(";
-                Pair pcPair = (Pair)it.next();
-                String pc = (String)pcPair._1;
-                String errorMessage = (String)pcPair._2;
-                String symValues = methodSummary.getSymValues();
-                String argValues = methodSummary.getArgValues();
-                String argTypes = methodSummary.getArgTypes();
-
-                StringTokenizer st = new StringTokenizer(symValues, ",");
-                StringTokenizer st2 = new StringTokenizer(argValues, ",");
-                StringTokenizer st3 = new StringTokenizer(argTypes, ",");
-                if (!argTypes.isEmpty() && argValues.isEmpty()) {
-                    continue;
-                }
-                while (st2.hasMoreTokens()) {
-                    String token = EMPTY;
-                    String actualValue = st2.nextToken();
-                    byte actualType = Byte.parseByte(st3.nextToken());
-                    if (st.hasMoreTokens())
-                        token = st.nextToken();
-                    if (pc.contains(token)) {
-                        String temp = pc.substring(pc.indexOf(token));
-                        if (temp.indexOf(']') < 0) {
-                            continue;
-                        }
-
-                        String val = temp.substring(temp.indexOf("[") + 1, temp.indexOf("]"));
-
-                        //if(actualType == Types.T_INT || actualType == Types.T_FLOAT || actualType == Types.T_LONG || actualType == Types.T_DOUBLE)
-                        //testCase = testCase + val + ",";
-                        if (actualType == Types.T_INT || actualType == Types.T_FLOAT || actualType == Types.T_LONG || actualType == Types.T_DOUBLE) {
-                            String suffix = EMPTY;
-                            if (actualType == Types.T_LONG) {
-                                suffix = "l";
-                            } else if (actualType == Types.T_FLOAT) {
-                                val = String.valueOf(Double.valueOf(val).floatValue());
-                                suffix = "f";
-                            }
-                            if (val.endsWith("Infinity")) {
-                                boolean isNegative = val.startsWith("-");
-                                val = ( ( actualType == Types.T_DOUBLE ) ? "Double" : "Float" );
-                                val += isNegative ? ".NEGATIVE_INFINITY" : ".POSITIVE_INFINITY";
-                                suffix = EMPTY;
-                            }
-                            testCase = testCase + val + suffix + ",";
-                        } else if (actualType == Types.T_BOOLEAN) { //translate boolean values represented as ints
-                            //to "true" or "false"
-                            if (val.equalsIgnoreCase("0"))
-                                testCase = testCase + "false" + ",";
-                            else
-                                testCase = testCase + "true" + ",";
-                        } else
-                            throw new RuntimeException("## Error: listener does not support type other than int, long, float, double and boolean");
-                        // TODO: to extend with arrays
-                    } else {
-                        //need to check if value is concrete
-                        if (token.contains("CONCRETE"))
-                            testCase = testCase + actualValue + ",";
-                        else
-                            testCase = testCase + SymbolicInteger.UNDEFINED + "(don't care),";// not correct in concolic mode
-                    }
-                }
-                if (testCase.endsWith(","))
-                    testCase = testCase.substring(0, testCase.length() - 1);
-                testCase = testCase + ")";
-                //process global information and append it to the output
-
-                if (!errorMessage.equalsIgnoreCase(EMPTY))
-                    testCase = testCase + "  --> " + errorMessage;
-                //do not add duplicate test case
-                if (!allTestCases.contains(testCase))
-                    allTestCases = allTestCases + "\n" + testCase;
-            }
-            pw.println(allTestCases);
-        } else {
-            pw.println("No path conditions for " + methodSummary.getMethodName() +
-                    "(" + methodSummary.getArgValues() + ")");
-        }
-    }
-
-      /*
-       * The way this method works is specific to the format of the methodSummary
-       * data structure
-       */
 
     private void printMethodSummaryHTML(PrintWriter pw, MethodSummary methodSummary)
     {
         pw.println("<h1>Test Cases Generated by Symbolic JavaPath Finder for " +
                 methodSummary.getMethodName() + " (Path Coverage) </h1>");
 
-        Vector<Pair> pathConditions = methodSummary.getPathConditions();
+        List<Pair<PathCondition, String>> pathConditions = methodSummary.getPathConditions();
         if (pathConditions.size() > 0) {
-            Iterator it = pathConditions.iterator();
+            Iterator<Pair<PathCondition, String>> it = pathConditions.iterator();
             String allTestCases = EMPTY;
             String symValues = methodSummary.getSymValues();
             StringTokenizer st = new StringTokenizer(symValues, ",");
@@ -450,9 +272,9 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
             allTestCases = "<tr>" + allTestCases + "<td>RETURN</td></tr>\n";
             while (it.hasNext()) {
                 String testCase = "<tr>";
-                Pair pcPair = (Pair)it.next();
-                String pc = (String)pcPair._1;
-                String errorMessage = (String)pcPair._2;
+                Pair<PathCondition, String> pcPair = it.next();
+                PathCondition pc = pcPair._1;
+                String errorMessage = pcPair._2;
                 //String _symValues = methodSummary.getSymValues();
                 String argValues = methodSummary.getArgValues();
                 String argTypes = methodSummary.getArgTypes();
@@ -466,8 +288,8 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
                     byte actualType = Byte.parseByte(st3.nextToken());
                     if (st.hasMoreTokens())
                         token = st.nextToken();
-                    if (pc.contains(token)) {
-                        String temp = pc.substring(pc.indexOf(token));
+                    if (pc.toString().contains(token)) {
+                        String temp = pc.toString().substring(pc.toString().indexOf(token));
                         if (temp.indexOf(']') < 0) {
                             continue;
                         }
@@ -512,33 +334,58 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
 
     }
 
-    /**
-     * Value class holding calculated results from {@link JVMReturnInstruction}.
-     */
-    private static class ReturnObject
+    private ReturnObject processInstructions(JVMReturnInstruction instruction, ThreadInfo threadInfo)
     {
-        private final Expression _result;
-
-        private final String _returnString;
-
-        private ReturnObject(String returnString, Expression result)
-        {
-            _returnString = returnString;
-            _result = result;
-        }
-
-        String getString()
-        {
-            return _returnString;
-        }
-
-        Expression getResult(){
-            return _result;
-        }
-
-        static ReturnObject from(String returnString, Expression result)
-        {
-            return new ReturnObject(String.format("Return value: %s", returnString), result);
+        if (instruction instanceof IRETURN) {
+            IRETURN ireturn = (IRETURN)instruction;
+            int returnValue = ireturn.getReturnValue();
+            IntegerExpression returnAttr = (IntegerExpression)ireturn.getReturnAttr(threadInfo);
+            if (returnAttr != null) {
+                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
+            } else { // concrete
+                return ReturnObject.from(String.valueOf(returnValue), new IntegerConstant(returnValue));
+            }
+        } else if (instruction instanceof LRETURN) {
+            LRETURN lreturn = (LRETURN)instruction;
+            long returnValue = lreturn.getReturnValue();
+            IntegerExpression returnAttr = (IntegerExpression)lreturn.getReturnAttr(threadInfo);
+            if (returnAttr != null) {
+                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
+            } else { // concrete
+                return ReturnObject.from(String.valueOf(returnValue), new IntegerConstant((int)returnValue));
+            }
+        } else if (instruction instanceof DRETURN) {
+            DRETURN dreturn = (DRETURN)instruction;
+            double returnValue = dreturn.getReturnValue();
+            RealExpression returnAttr = (RealExpression)dreturn.getReturnAttr(threadInfo);
+            if (returnAttr != null) {
+                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
+            } else { // concrete
+                return ReturnObject.from(String.valueOf(returnValue), new RealConstant(returnValue));
+            }
+        } else if (instruction instanceof FRETURN) {
+            FRETURN freturn = (FRETURN)instruction;
+            double returnValue = freturn.getReturnValue();
+            RealExpression returnAttr = (RealExpression)freturn.getReturnAttr(threadInfo);
+            if (returnAttr != null) {
+                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
+            } else { // concrete
+                return ReturnObject.from(String.valueOf(returnValue), new RealConstant(returnValue));
+            }
+        } else if (instruction instanceof ARETURN) {
+            ARETURN areturn = (ARETURN)instruction;
+            IntegerExpression returnAttr = (IntegerExpression)areturn.getReturnAttr(threadInfo);
+            if (returnAttr != null) {
+                return ReturnObject.from(String.valueOf(returnAttr.solution()), returnAttr);
+            } else {// concrete
+                Object val = areturn.getReturnValue(threadInfo);
+                //DynamicElementInfo val = (DynamicElementInfo)areturn.getReturnValue(threadInfo);
+                String tmp = String.valueOf(val);
+                tmp = tmp.substring(tmp.lastIndexOf('.') + 1);
+                return ReturnObject.from(String.valueOf(val), new SymbolicInteger(tmp));
+            }
+        } else {//other types of return
+            return ReturnObject.from("-- ", null);
         }
     }
 
@@ -548,16 +395,32 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
      * @param choiceGenerator
      * @return
      */
-    private PCChoiceGenerator searchForPCChoiceGenerator(ChoiceGenerator<?> choiceGenerator)
+    private PCChoiceGenerator searchForPCChoiceGenerator(final ChoiceGenerator<?> choiceGenerator)
     {
-        if (!( choiceGenerator instanceof PCChoiceGenerator )) {
-            ChoiceGenerator<?> previous = choiceGenerator.getPreviousChoiceGenerator();
-            while (!( ( previous == null ) || ( previous instanceof PCChoiceGenerator ) )) {
-                previous = previous.getPreviousChoiceGenerator();
-            }
-            choiceGenerator = previous;
+        if (choiceGenerator instanceof PCChoiceGenerator) {
+            return (PCChoiceGenerator)choiceGenerator;
         }
-        return choiceGenerator == null ? null : (PCChoiceGenerator)choiceGenerator;
+        ChoiceGenerator<?> previous = choiceGenerator.getPreviousChoiceGenerator();
+        while (!( ( previous == null ) || ( previous instanceof PCChoiceGenerator ) )) {
+            previous = previous.getPreviousChoiceGenerator();
+        }
+        return previous == null ? null : (PCChoiceGenerator)previous;
+    }
+
+      /*
+       * The way this method works is specific to the format of the methodSummary
+       * data structure
+       */
+
+    private void solve(PathCondition pathCondition)
+    {
+        if (SymbolicInstructionFactory.concolicMode) { //TODO: cleaner
+            SymbolicConstraintsGeneral solver = new SymbolicConstraintsGeneral();
+            PCAnalyzer pa = new PCAnalyzer();
+            pa.solve(pathCondition, solver);
+        } else {
+            pathCondition.solve();
+        }
     }
 
     /**
@@ -705,7 +568,7 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
 
         private final String _methodName;
 
-        private final Vector<Pair> _pathConditions = new Vector<Pair>();
+        private final List<Pair<PathCondition, String>> _pathConditions = new ArrayList<>();
 
         private final String _symValues;
 
@@ -717,7 +580,7 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
             _symValues = symbolicValues;
         }
 
-        public void addPathCondition(Pair pc)
+        public void addPathCondition(Pair<PathCondition, String> pc)
         {
             _pathConditions.add(pc);
         }
@@ -737,7 +600,7 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
             return _methodName;
         }
 
-        public Vector<Pair> getPathConditions()
+        public List<Pair<PathCondition, String>> getPathConditions()
         {
             return _pathConditions;
         }
@@ -792,6 +655,192 @@ public class SymbolicListener extends PropertyListenerAdapter implements Publish
                 _symValues = symbolicValues;
                 return this;
             }
+        }
+    }
+
+    static class Printer
+    {
+
+        private final MethodSummary _summary;
+
+        private final PrintWriter _writer;
+
+        Printer(PrintWriter writer, MethodSummary summary)
+        {
+
+            _writer = writer;
+            _summary = summary;
+        }
+
+        void printSummary()
+        {
+            printBegin();
+            printBody();
+        }
+
+        private String collectCondition(PathCondition pathCondition, String sMessage)
+        {
+            String[] aSymbolicValues = _summary.getSymValues().split(",");
+            String[] aArgValues = _summary.getArgValues().split(",");
+            String[] aArgTypes = _summary.getArgTypes().split(",");
+            if (aArgTypes.length != aArgValues.length) {
+                return EMPTY;
+            }
+            final StringBuilder builder = new StringBuilder(_summary.getMethodName());
+            builder.append('(');
+            for (int i = 0; i < aArgTypes.length; i++) {
+                if (isSymbolic(pathCondition, aSymbolicValues[i])) {
+                    String stringCondition = pathCondition.toString();
+                    String temporary = stringCondition.substring(stringCondition.indexOf(aSymbolicValues[i]));
+                    int closingBraceIndex = temporary.indexOf(']');
+                    if (closingBraceIndex < 0) {
+                        continue;
+                    }
+                    int openingBraceIndex = temporary.indexOf('[');
+                    String value = temporary.substring(openingBraceIndex + 1, closingBraceIndex);
+                    builder.append(getValue(value, aArgTypes[i]));
+                } else if (isConcrete(aSymbolicValues[i])) {
+                    builder.append(aArgValues[i]);
+                } else {// undefined
+                    builder.append(SymbolicInteger.UNDEFINED).append("(don't care)");
+                }
+                if (i + 1 < aArgTypes.length) {
+                    builder.append(',');
+                }
+            }
+            builder.append(')');
+            if (!sMessage.equals(EMPTY)) {
+                builder.append(" --> ").append(sMessage);
+            }
+            return builder.toString();
+        }
+
+        private String getInfinityValue(String value, byte type)
+        {
+            StringBuilder builder = new StringBuilder();
+            switch (type) {
+                case Types.T_DOUBLE: {
+                    builder.append("Double");
+                    break;
+                }
+                case Types.T_FLOAT: {
+                    builder.append("Float");
+                    break;
+                }
+                default: {
+                    builder.append("Non-expected type: ").append(type);
+                    break;
+                }
+            }
+            boolean negative = value.charAt(0) == '-';
+            if (negative) {
+                builder.append(".NEGATIVE_INFINITY");
+            } else {
+                builder.append(".POSITIVE_INFINITY");
+            }
+            return builder.toString();
+        }
+
+        private String getValue(String value, String aArgType)
+        {
+            final byte type = Byte.parseByte(aArgType);
+            if (value.endsWith("Infinity")) {
+                return getInfinityValue(value, type);
+            }
+            switch (type) {
+                case Types.T_INT: {
+                    return value;
+                }
+                case Types.T_LONG: {
+                    return value + 'l';
+                }
+                case Types.T_FLOAT: {
+                    return Float.toString(Double.valueOf(value).floatValue()) + 'f';
+                }
+                case Types.T_DOUBLE: {
+                    return Double.valueOf(value).toString() + 'd';
+                }
+                case Types.T_BOOLEAN: {
+                    return value.equals('0') ? Boolean.FALSE.toString() : Boolean.TRUE.toString();
+                }
+                default: {
+                    throw new RuntimeException("## Error: listener does not support type other than int, long, float, double and boolean");
+                }
+            }
+        }
+
+        private boolean isConcrete(String aSymbolicValue)
+        {
+            return aSymbolicValue.contains("CONCRETE");
+        }
+
+        private boolean isSymbolic(PathCondition condition, String symbolicValue)
+        {
+            return condition.toString().contains(symbolicValue);
+        }
+
+        private void printBegin()
+        {
+            _writer.println(String.format("Summary for method: %s", _summary.getMethodName()));
+            _writer.println(String.format("Inputs: %s", _summary.getSymValues()));
+        }
+
+        private void printBody()
+        {
+            final List<Pair<PathCondition, String>> pathConditions = _summary.getPathConditions();
+            if (pathConditions.isEmpty()) {
+                printEmpty();
+            } else {
+                printConditions(pathConditions);
+            }
+        }
+
+        private void printConditions(List<Pair<PathCondition, String>> pathConditions)
+        {
+            Set<String> conditions = new HashSet<>();
+            for (Pair<PathCondition, String> pathCondition : pathConditions) {
+                String sCondition = collectCondition(pathCondition._1, pathCondition._2);
+                conditions.add(sCondition);
+            }
+            for (String sCondition : conditions) {
+                _writer.println(sCondition);
+            }
+        }
+
+        private void printEmpty()
+        {
+            _writer.println(String.format("No path conditions for %s (%s)", _summary.getMethodName(), _summary.getArgValues()));
+        }
+    }
+
+    /**
+     * Value class holding calculated results from {@link JVMReturnInstruction}.
+     */
+    private static class ReturnObject
+    {
+        private final Expression _result;
+
+        private final String _returnString;
+
+        private ReturnObject(String returnString, Expression result)
+        {
+            _returnString = returnString;
+            _result = result;
+        }
+
+        static ReturnObject from(String returnString, Expression result)
+        {
+            return new ReturnObject(String.format("Return value: %s", returnString), result);
+        }
+
+        Expression getResult()
+        {
+            return _result;
+        }
+
+        String getString()
+        {
+            return _returnString;
         }
     }
 }
