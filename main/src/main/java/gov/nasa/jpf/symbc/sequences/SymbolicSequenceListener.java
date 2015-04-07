@@ -221,6 +221,9 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
         //	if (BytecodeUtils.isMethodSymbolic(conf, methodName, numberOfArgs, null)){
 
         PCChoiceGenerator choiceGenerator = SymbolicListenersUtils.searchForPCChoiceGenerator(vm.getChoiceGenerator());
+        if (choiceGenerator == null) {
+            return;
+        }
         PathCondition pathCondition = choiceGenerator.getCurrentPC();
         if (pathCondition != null) {
             SymbolicListenersUtils.solve(pathCondition);
