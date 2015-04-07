@@ -29,24 +29,18 @@ import gov.nasa.jpf.report.ConsolePublisher;
 import gov.nasa.jpf.report.Publisher;
 import gov.nasa.jpf.report.PublisherExtension;
 import gov.nasa.jpf.search.Search;
-import gov.nasa.jpf.symbc.SymbolicInstructionFactory;
 import gov.nasa.jpf.symbc.SymbolicListenersUtils;
 import gov.nasa.jpf.symbc.bytecode.BytecodeUtils;
 import gov.nasa.jpf.symbc.bytecode.INVOKESTATIC;
-import gov.nasa.jpf.symbc.concolic.PCAnalyzer;
-import gov.nasa.jpf.symbc.numeric.IntegerExpression;
 import gov.nasa.jpf.symbc.numeric.PCChoiceGenerator;
 import gov.nasa.jpf.symbc.numeric.PathCondition;
-import gov.nasa.jpf.symbc.numeric.RealExpression;
-import gov.nasa.jpf.symbc.numeric.SymbolicConstraintsGeneral;
-import gov.nasa.jpf.symbc.string.StringSymbolic;
 import gov.nasa.jpf.vm.*;
 
 import java.io.PrintWriter;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
-import java.util.Vector;
 
 /**
  * @author Mithun Acharya
@@ -79,19 +73,20 @@ import java.util.Vector;
 public class SymbolicSequenceListener extends PropertyListenerAdapter implements PublisherExtension
 {
 
+    private static final String EMPTY = "";
 
     // custom marker to mark error strings in method sequences
     private final static String exceptionMarker = "##EXCEPTION## ";
 
     // Name of the class under test
-    String _className = "";
+    String _className = EMPTY;
 
     // this set will store all the method sequences.
     // will be printed at last.
     // '_methodSequences' is a set of 'methodSequence's
     // A single 'methodSequence' is a vector of invoked 'method's along a path
     // A single invoked 'method' is represented as a String.
-    Set<Vector> _methodSequences = new LinkedHashSet<Vector>();
+    Set<List<String>> _methodSequences = new LinkedHashSet<List<String>>();
 
     public SymbolicSequenceListener(Config conf, JPF jpf)
     {
@@ -158,13 +153,12 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
     {
         System.out.println("--------->property violated");
         VM vm = search.getVM();
-        SystemState ss = vm.getSystemState();
         final PCChoiceGenerator cg = SymbolicListenersUtils.searchForPCChoiceGenerator(vm.getChoiceGenerator());
         if (cg == null) {
             return;
         }
         Property prop = search.getLastError().getProperty();
-        String errAnn = "";
+        String errAnn = EMPTY;
         if (prop instanceof NoUncaughtExceptionsProperty) {
             String exceptionClass = ( (NoUncaughtExceptionsProperty)prop ).getUncaughtExceptionInfo().getExceptionClassname();
             errAnn = "(expected = " + exceptionClass + ".class)";
@@ -184,12 +178,13 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
         SymbolicListenersUtils.solve(pathCondition);
 
         // get the chain of choice generators.
-        ChoiceGenerator<?>[] cgs = ss.getChoiceGenerators();
-        Vector<String> methodSequence = getMethodSequence(cgs);
+        SystemState systemState = vm.getSystemState();
+        ChoiceGenerator<?>[] cgs = systemState.getChoiceGenerators();
+        List<String> methodSequence = SymbolicListenersUtils.getMethodSequence(cgs);
         // Now append the error String and then add methodSequence to _methodSequences
         // prefix the exception marker to distinguish this from
         // an invoked method.
-        if (errAnn != "") {
+        if (!EMPTY.equals(errAnn)) {
             methodSequence.add(0, errAnn);
         }
         methodSequence.add(exceptionMarker + error);
@@ -216,124 +211,24 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
     public void stateBacktracked(Search search)
     {
         VM vm = search.getVM();
-        Config conf = vm.getConfig();
-
-        Instruction insn = vm.getChoiceGenerator().getInsn();
-        SystemState ss = vm.getSystemState();
+        SystemState systemState = vm.getSystemState();
+        //        Config conf = vm.getConfig();
+        //        Instruction insn = vm.getChoiceGenerator().getInsn();
         //ThreadInfo ti = vm.getChoiceGenerator().getThreadInfo();
-        MethodInfo mi = insn.getMethodInfo();
-        String methodName = mi.getFullName();
-
-        int numberOfArgs = mi.getNumberOfArguments();//mi.getArgumentsSize()- 1;// corina: problem here? - 1;
-
+        //        MethodInfo mi = insn.getMethodInfo();
+        //        String methodName = mi.getFullName();
+        //        int numberOfArgs = mi.getNumberOfArguments();//mi.getArgumentsSize()- 1;// corina: problem here? - 1;
         //	if (BytecodeUtils.isMethodSymbolic(conf, methodName, numberOfArgs, null)){
 
-        ChoiceGenerator<?> cg = vm.getChoiceGenerator();
-
-        if (!( cg instanceof PCChoiceGenerator )) {
-            ChoiceGenerator<?> prev_cg = cg.getPreviousChoiceGenerator();
-            while (!( ( prev_cg == null ) || ( prev_cg instanceof PCChoiceGenerator ) )) {
-                prev_cg = prev_cg.getPreviousChoiceGenerator();
-            }
-            cg = prev_cg;
-        }
-
-        if (( cg instanceof PCChoiceGenerator ) &&
-                ( (PCChoiceGenerator)cg ).getCurrentPC() != null) {
-
-            PathCondition pc = ( (PCChoiceGenerator)cg ).getCurrentPC();
-            //solve the path condition
-            if (SymbolicInstructionFactory.concolicMode) { //TODO: cleaner
-                SymbolicConstraintsGeneral solver = new SymbolicConstraintsGeneral();
-                PCAnalyzer pa = new PCAnalyzer();
-                pa.solve(pc, solver);
-            } else
-                pc.solve();
+        PCChoiceGenerator choiceGenerator = SymbolicListenersUtils.searchForPCChoiceGenerator(vm.getChoiceGenerator());
+        PathCondition pathCondition = choiceGenerator.getCurrentPC();
+        if (pathCondition != null) {
+            SymbolicListenersUtils.solve(pathCondition);
             // get the chain of choice generators.
-            ChoiceGenerator<?>[] cgs = ss.getChoiceGenerators();
-            _methodSequences.add(getMethodSequence(cgs));
+            ChoiceGenerator<?>[] cgs = systemState.getChoiceGenerators();
+            _methodSequences.add(SymbolicListenersUtils.getMethodSequence(cgs));
         }
         //	}
-    }
-
-    /**
-     * A single invoked 'method' is represented as a String.
-     * information about the invoked method is got from the SequenceChoiceGenerator
-     */
-    private String getInvokedMethod(SequenceChoiceGenerator cg)
-    {
-        String invokedMethod = "";
-
-        // get method name
-        String shortName = cg.getMethodShortName();
-        invokedMethod += shortName + "(";
-
-        // get argument values
-        Object[] argValues = cg.getArgValues();
-
-        // get number of arguments
-        int numberOfArgs = argValues.length;
-
-        // get symbolic attributes
-        Object[] attributes = cg.getArgAttributes();
-
-        // get the solution
-        for (int i = 0; i < numberOfArgs; i++) {
-            Object attribute = attributes[i];
-            if (attribute != null) { // parameter symbolic
-                // here we should consider different types of symbolic arguments
-                //IntegerExpression e = (IntegerExpression)attributes[i];
-                Object e = attributes[i];
-                String solution = "";
-
-                if (e instanceof IntegerExpression) {
-                    // trick to print bools correctly
-                    if (argValues[i].toString() == "true" || argValues[i].toString() == "false") {
-                        if (( (IntegerExpression)e ).solution() == 0)
-                            solution = solution + "false";
-                        else
-                            solution = solution + "true";
-                    } else
-                        solution = solution + ( (IntegerExpression)e ).solution();
-                } else if (e instanceof RealExpression)
-                    solution = solution + ( (RealExpression)e ).solution();
-                else
-                    solution = solution + ( (StringSymbolic)e ).solution();
-                invokedMethod += solution + ",";
-            } else { // parameter concrete - for a concrete parameter, the symbolic attribute is null
-                invokedMethod += argValues[i] + ",";
-            }
-        }
-
-        // remove the extra comma
-        if (invokedMethod.endsWith(","))
-            invokedMethod = invokedMethod.substring(0, invokedMethod.length() - 1);
-        invokedMethod += ")";
-
-        return invokedMethod;
-    }
-
-    /**
-     * traverses the ChoiceGenerator chain to get the method sequence
-     * looks for SequenceChoiceGenerator in the chain
-     * SequenceChoiceGenerators have information about the methods
-     * executed and hence the method sequence can be obtained.
-     * A single 'methodSequence' is a vector of invoked 'method's along a path
-     * A single invoked 'method' is represented as a String.
-     */
-    private Vector<String> getMethodSequence(ChoiceGenerator[] cgs)
-    {
-        // A method sequence is a vector of strings
-        Vector<String> methodSequence = new Vector<String>();
-        ChoiceGenerator cg = null;
-        // explore the choice generator chain - unique for a given path.
-        for (int i = 0; i < cgs.length; i++) {
-            cg = cgs[i];
-            if (( cg instanceof SequenceChoiceGenerator )) {
-                methodSequence.add(getInvokedMethod((SequenceChoiceGenerator)cg));
-            }
-        }
-        return methodSequence;
     }
 
     /**
@@ -376,13 +271,13 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
         pw.println("	}"); // setUp method end
         // Create a test method for each sequence
         int testIndex = 0;
-        Iterator<Vector> it = _methodSequences.iterator();
+        Iterator<List<String>> it = _methodSequences.iterator();
         while (it.hasNext()) {
-            Vector<String> methodSequence = it.next();
+            List<String> methodSequence = it.next();
             pw.println();
             Iterator<String> it1 = methodSequence.iterator();
             if (it1.hasNext()) {
-                String errAnn = (String)( it1.next() );
+                String errAnn = it1.next();
 
                 if (errAnn.contains("expected")) {
                     pw.println("	@Test" + errAnn); // Corina: added @Test annotation with exception expected
@@ -418,7 +313,7 @@ public class SymbolicSequenceListener extends PropertyListenerAdapter implements
      */
     private void printMethodSequences(PrintWriter pw)
     {
-        Iterator<Vector> it = _methodSequences.iterator();
+        Iterator<List<String>> it = _methodSequences.iterator();
         while (it.hasNext()) {
             pw.println(it.next());
         }

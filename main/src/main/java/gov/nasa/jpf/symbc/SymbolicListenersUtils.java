@@ -10,13 +10,20 @@
 package gov.nasa.jpf.symbc;
 
 import gov.nasa.jpf.symbc.concolic.PCAnalyzer;
+import gov.nasa.jpf.symbc.numeric.IntegerExpression;
 import gov.nasa.jpf.symbc.numeric.PCChoiceGenerator;
 import gov.nasa.jpf.symbc.numeric.PathCondition;
+import gov.nasa.jpf.symbc.numeric.RealExpression;
 import gov.nasa.jpf.symbc.numeric.SymbolicConstraintsGeneral;
+import gov.nasa.jpf.symbc.sequences.SequenceChoiceGenerator;
+import gov.nasa.jpf.symbc.string.StringSymbolic;
 import gov.nasa.jpf.vm.ChoiceGenerator;
 import gov.nasa.jpf.vm.MethodInfo;
 import gov.nasa.jpf.vm.StackFrame;
 import gov.nasa.jpf.vm.Types;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Common util method used in symbc listeners
@@ -25,6 +32,8 @@ import gov.nasa.jpf.vm.Types;
  */
 public class SymbolicListenersUtils
 {
+    public static final String EMPTY = "";
+
     private SymbolicListenersUtils()
     {
         // to prevent instantiations
@@ -57,6 +66,83 @@ public class SymbolicListenersUtils
             }
         }
         return attributes;
+    }
+
+    /**
+     * A single invoked 'method' is represented as a String.
+     * information about the invoked method is got from the SequenceChoiceGenerator
+     */
+    public static String getInvokedMethod(SequenceChoiceGenerator choiceGenerator)
+    {
+        // get method name
+        String shortName = choiceGenerator.getMethodShortName();
+        StringBuilder invokedMethod = new StringBuilder(shortName).append("(");
+
+        // get argument values
+        Object[] argValues = choiceGenerator.getArgValues();
+
+        // get number of arguments
+        int numberOfArgs = argValues.length;
+
+        // get symbolic attributes
+        Object[] attributes = choiceGenerator.getArgAttributes();
+
+        // get the solution
+        for (int i = 0; i < numberOfArgs; i++) {
+            Object attribute = attributes[i];
+            if (attribute != null) { // parameter symbolic
+                // here we should consider different types of symbolic arguments
+                //IntegerExpression e = (IntegerExpression)attributes[i];
+                Object e = attributes[i];
+                String solution = "";
+
+                if (e instanceof IntegerExpression) {
+                    // trick to print bools correctly
+                    if (argValues[i].toString() == "true" || argValues[i].toString() == "false") {
+                        if (( (IntegerExpression)e ).solution() == 0) {
+                            solution = solution + "false";
+                        } else {
+                            solution = solution + "true";
+                        }
+                    } else
+                        solution = solution + ( (IntegerExpression)e ).solution();
+                } else if (e instanceof RealExpression) {
+                    solution = solution + ( (RealExpression)e ).solution();
+                } else {
+                    solution = solution + ( (StringSymbolic)e ).solution();
+                }
+                invokedMethod.append(solution);
+            } else { // parameter concrete - for a concrete parameter, the symbolic attribute is null
+                invokedMethod.append(argValues[i]);
+            }
+            if (i + 1 < numberOfArgs) { //add comma between arguments
+                invokedMethod.append(",");
+            }
+        }
+        invokedMethod.append(")");
+
+        return invokedMethod.toString();
+    }
+
+    /**
+     * traverses the {@link ChoiceGenerator} chain to get the method sequence
+     * looks for {@link SequenceChoiceGenerator} in the chain
+     * SequenceChoiceGenerators have information about the methods
+     * executed and hence the method sequence can be obtained.
+     * A single 'methodSequence' is a vector of invoked 'method's along a path
+     * A single invoked 'method' is represented as a String.
+     */
+    public static List<String> getMethodSequence(ChoiceGenerator[] cgs)
+    {
+        // A method sequence is a vector of strings
+        List<String> methodSequence = new ArrayList<>();
+        // explore the choice generator chain - unique for a given path.
+        for (ChoiceGenerator choiceGenerator : cgs) {
+            if (( choiceGenerator instanceof SequenceChoiceGenerator )) {
+                methodSequence.add(getInvokedMethod((SequenceChoiceGenerator)choiceGenerator));
+            }
+        }
+        return methodSequence;
     }
 
     /**
