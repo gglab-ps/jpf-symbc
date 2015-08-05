@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2014, United States Government, as represented by the
+ * Administrator of the National Aeronautics and Space Administration.
+ * All rights reserved.
+ *
+ * Symbolic Pathfinder (jpf-symbc) is licensed under the Apache License, 
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ *        http://www.apache.org/licenses/LICENSE-2.0. 
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and 
+ * limitations under the License.
+ */
+
 package gov.nasa.jpf.symbc;
 
 import java.util.HashSet;
@@ -33,8 +51,8 @@ import gov.nasa.jpf.vm.ThreadInfo;
 import gov.nasa.jpf.vm.VM;
 
 public class JPF_gov_nasa_jpf_symbc_Debug extends NativePeer {
-	@MJI
-	public static PathCondition getPC(MJIEnv env) {
+	
+	static PathCondition getPC(MJIEnv env) {
 		VM vm = env.getVM();
 		ChoiceGenerator<?> cg = vm.getChoiceGenerator();
 		PathCondition pc = null;
@@ -52,6 +70,8 @@ public class JPF_gov_nasa_jpf_symbc_Debug extends NativePeer {
 		}
 		return pc;
 	}
+	
+	
 	@MJI
 	public static void printPC(MJIEnv env, int objRef, int msgRef) {
 		PathCondition pc = getPC(env);
@@ -83,6 +103,52 @@ public class JPF_gov_nasa_jpf_symbc_Debug extends NativePeer {
 		else
 			return env.newString(Integer.toString(v));
 	}
+	
+	
+	@MJI
+	public static void freshPCcopy(MJIEnv env, int objRef) {
+		PathCondition pc = getPC(env);
+		if(pc!=null)
+			pcLocal = pc.make_copy();
+		else
+			pcLocal = new PathCondition();
+	}
+	
+	static PathCondition pcLocal;
+			
+	@MJI
+	public static boolean addEQ0(MJIEnv env, int objRef, int v) {
+		Object [] attrs = env.getArgAttributes();
+		
+		IntegerExpression sym_arg = (IntegerExpression)attrs[0];
+		if (sym_arg !=null) {
+			pcLocal._addDet(Comparator.EQ, sym_arg, 0);
+			return true;
+		}
+		else
+			return (v==0);
+	}
+	
+	@MJI
+	public static boolean addGT0(MJIEnv env, int objRef, int v) {
+		Object [] attrs = env.getArgAttributes();
+		
+		IntegerExpression sym_arg = (IntegerExpression)attrs[0];
+		if (sym_arg !=null) {
+			pcLocal._addDet(Comparator.GT, sym_arg, 0);
+			return true;
+		}
+		else
+			return (v>0);
+	}
+	
+	@MJI
+	public static boolean checkSAT(MJIEnv env, int objRef) {
+		return pcLocal.simplify();
+	}
+	
+	
+	
 	@MJI
     public static int getSymbolicRealValue(MJIEnv env, int objRef, double v) {
     	Object [] attrs = env.getArgAttributes();

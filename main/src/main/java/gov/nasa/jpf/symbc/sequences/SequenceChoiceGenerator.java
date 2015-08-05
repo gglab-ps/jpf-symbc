@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2014, United States Government, as represented by the
+ * Administrator of the National Aeronautics and Space Administration.
+ * All rights reserved.
+ *
+ * Symbolic Pathfinder (jpf-symbc) is licensed under the Apache License, 
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ *        http://www.apache.org/licenses/LICENSE-2.0. 
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and 
+ * limitations under the License.
+ */
+
 // Copyright (C) 2007 United States Government as represented by the
 // Administrator of the National Aeronautics and Space Administration
 // (NASA).  All Rights Reserved.
@@ -15,15 +33,16 @@
 // THE SUBJECT SOFTWARE WILL BE ERROR FREE, OR ANY WARRANTY THAT
 // DOCUMENTATION, IF PROVIDED, WILL CONFORM TO THE SUBJECT SOFTWARE.
 //
-
 package gov.nasa.jpf.symbc.sequences;
 
 import gov.nasa.jpf.vm.ChoiceGenerator;
 
 
+
 /**
- * @author pcorina
- */
+* @author pcorina
+*
+*/
 
 // I propose the following
 // create a new choice generator that records the names of the methods that are executed
@@ -32,52 +51,44 @@ import gov.nasa.jpf.vm.ChoiceGenerator;
 // it will not make any choices, but it will force JPF to remember this info on the current path
 // so that it is easy to reconstruct and print it
 // then we will not really need any more maps to print the information
+public class SequenceChoiceGenerator extends gov.nasa.jpf.vm.choice.IntIntervalGenerator {
 
-// TODO grzesuav : class should be made immutable
-public class SequenceChoiceGenerator extends gov.nasa.jpf.vm.choice.IntIntervalGenerator
-{
+  private String methodShortName;
+  private Object [] argValues;
+  private Object [] attributes;
+  
+  @Override
+  public ChoiceGenerator randomize() {
+      // This doesn't make choices anyway, no need to change.
+      return this;
+  }
+  
+  // will always make only one choice
+@SuppressWarnings("deprecation")
+public SequenceChoiceGenerator(String _methodShortName) {
+      super(0, 0);
+      methodShortName = _methodShortName;
+  }
 
-    private final Object[] _argValues;
 
-    private final Object[] _attributes;
+  public Object [] getArgValues() {
+      return argValues;
+  }
 
-    private final String _methodShortName;
+  public void setArgValues(Object [] _argValues) {
+      argValues = _argValues;;
+  }
 
-    // will always make only one choice
-    @SuppressWarnings("deprecation")
-    private SequenceChoiceGenerator(String methodShortName, Object[] argValues, Object[] attributes)
-    {
-        super(0, 0);
-        _methodShortName = methodShortName;
-        _argValues = argValues;
-        _attributes = attributes;
-    }
+  public Object [] getArgAttributes() {
+      return attributes;
+  }
 
-    public static SequenceChoiceGenerator newInstance(String sMethodShortName, final Object[] argumentsValues, final Object[] attributes)
-    {
-        return new SequenceChoiceGenerator(sMethodShortName, argumentsValues, attributes);
-    }
+  public void setArgAttributes(Object [] _attributes) {
+      attributes = _attributes;
+  }
 
-    public Object[] getArgAttributes()
-    {
-        return _attributes;
-    }
-
-    public Object[] getArgValues()
-    {
-        return _argValues;
-    }
-
-    public String getMethodShortName()
-    {
-        return _methodShortName;
-    }
-
-    @Override
-    public ChoiceGenerator randomize()
-    {
-        // This doesn't make choices anyway, no need to change.
-        return this;
-    }
+  public String getMethodShortName() {
+	return methodShortName;
+  }
 
 }

@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2014, United States Government, as represented by the
+ * Administrator of the National Aeronautics and Space Administration.
+ * All rights reserved.
+ *
+ * Symbolic Pathfinder (jpf-symbc) is licensed under the Apache License, 
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * 
+ *        http://www.apache.org/licenses/LICENSE-2.0. 
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and 
+ * limitations under the License.
+ */
+
 //
 //Copyright (C) 2005 United States Government as represented by the
 //Administrator of the National Aeronautics and Space Administration
@@ -19,29 +37,25 @@
 
 package gov.nasa.jpf.symbc.numeric;
 
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
+import gov.nasa.jpf.Config;
 import gov.nasa.jpf.symbc.SymbolicInstructionFactory;
-import gov.nasa.jpf.symbc.numeric.solvers.ProblemCompare;
 import gov.nasa.jpf.symbc.numeric.solvers.DebugSolvers;
 import gov.nasa.jpf.symbc.numeric.solvers.ProblemCVC3;
 import gov.nasa.jpf.symbc.numeric.solvers.ProblemCVC3BitVector;
 import gov.nasa.jpf.symbc.numeric.solvers.ProblemChoco;
+import gov.nasa.jpf.symbc.numeric.solvers.ProblemCompare;
 //import gov.nasa.jpf.symbc.numeric.solvers.ProblemChoco2;
 import gov.nasa.jpf.symbc.numeric.solvers.ProblemCoral;
+import gov.nasa.jpf.symbc.numeric.solvers.ProblemDReal;
 import gov.nasa.jpf.symbc.numeric.solvers.ProblemGeneral;
 import gov.nasa.jpf.symbc.numeric.solvers.ProblemIAsolver;
 import gov.nasa.jpf.symbc.numeric.solvers.ProblemYices;
 import gov.nasa.jpf.symbc.numeric.solvers.ProblemZ3;
-
-
-
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Map.Entry;
 
 
 // generalized to use different constraint solvers/decision procedures
@@ -52,7 +66,7 @@ public class SymbolicConstraintsGeneral {
 	  protected ProblemGeneral pb;
 	  protected Boolean result; // tells whether result is satisfiable or not
 	  
-	public boolean isSatisfiable(PathCondition pc) {
+	public boolean isSatisfiable(final PathCondition pc) {
 		if (pc == null || pc.count == 0) {
 			if (SymbolicInstructionFactory.debugMode)
 				System.out.println("## Warning: empty path condition");
@@ -73,16 +87,19 @@ public class SymbolicConstraintsGeneral {
 //		if (SymbolicInstructionFactory.debugMode)
 //			System.out.println("checking: PC "+pc);
 
-		String[] dp = SymbolicInstructionFactory.dp;
+		final String[] dp = SymbolicInstructionFactory.dp;
 		if(dp == null) { // default: use choco
 			pb = new ProblemChoco();
 		} else if(dp[0].equalsIgnoreCase("choco")){
 			pb = new ProblemChoco();
 //		} else if(dp[0].equalsIgnoreCase("choco2")){
 //			pb = new ProblemChoco2();
-		} else if(dp[0].equalsIgnoreCase("coral")){
-			pb = new ProblemCoral();
-		}
+    } else if(dp[0].equalsIgnoreCase("coral")){
+      pb = new ProblemCoral();
+    } else if(dp[0].equalsIgnoreCase("dreal")){
+      // Added for dReal by Nima
+      pb = ProblemDReal.createInstance(new Config(new String[]{}));
+    }
 		else if(dp[0].equalsIgnoreCase("iasolver")){
 			pb = new ProblemIAsolver();
 		} else if(dp[0].equalsIgnoreCase("cvc3")){
@@ -139,7 +156,7 @@ public class SymbolicConstraintsGeneral {
 
 	}
 
-	public boolean isSatisfiableGreen(PathCondition pc) {
+	public boolean isSatisfiableGreen(final PathCondition pc) {
 		if (pc == null || pc.count == 0) {
 			if (SymbolicInstructionFactory.debugMode)
 				System.out.println("## Warning: empty path condition");
@@ -174,14 +191,14 @@ public class SymbolicConstraintsGeneral {
    }
 
 
-	public boolean solve(PathCondition pc) {
+	public boolean solve(final PathCondition pc) {
 		//if (SymbolicInstructionFactory.debugMode)
 			//System.out.println("solving: PC " + pc);
 
 
 		if (pc == null || pc.count == 0) return true;
 
-		String[] dp = SymbolicInstructionFactory.dp;
+		final String[] dp = SymbolicInstructionFactory.dp;
 		if (dp[0].equalsIgnoreCase("no_solver"))
 			return true;
 
@@ -203,22 +220,22 @@ public class SymbolicConstraintsGeneral {
 				sym_realvar_mappings = PCParser.symRealVar.entrySet();
 				i_real = sym_realvar_mappings.iterator();
 				while(i_real.hasNext()) {
-					Entry<SymbolicReal,Object> e = i_real.next();
-					SymbolicReal pcVar = e.getKey();
-					Object dpVar = e.getValue();
+					final Entry<SymbolicReal,Object> e = i_real.next();
+					final SymbolicReal pcVar = e.getKey();
+					final Object dpVar = e.getValue();
 					pcVar.solution=pb.getRealValue(dpVar); // may be undefined: throws an exception
 				}
-			} catch (Exception exp) {
+			} catch (final Exception exp) {
 				this.catchBody(PCParser.symRealVar, pb, pc);
 			} // end catch
 
 
 			// compute solutions for integer variables
-			Set<Entry<SymbolicInteger,Object>> sym_intvar_mappings = PCParser.symIntegerVar.entrySet();
-			Iterator<Entry<SymbolicInteger,Object>> i_int = sym_intvar_mappings.iterator();
+			final Set<Entry<SymbolicInteger,Object>> sym_intvar_mappings = PCParser.symIntegerVar.entrySet();
+			final Iterator<Entry<SymbolicInteger,Object>> i_int = sym_intvar_mappings.iterator();
 			//try {
 				while(i_int.hasNext()) {
-					Entry<SymbolicInteger,Object> e =  i_int.next();
+					final Entry<SymbolicInteger,Object> e =  i_int.next();
 					e.getKey().solution=pb.getIntValue(e.getValue());
 
 				}
@@ -258,7 +275,7 @@ public class SymbolicConstraintsGeneral {
 	 * deal with yices and choco refinements of
 	 * solution ranges.
 	 */
-	public Map<SymbolicReal, Object> catchBody(Map<SymbolicReal, Object> realVars, ProblemGeneral prob, PathCondition pc) {
+	public Map<SymbolicReal, Object> catchBody(final Map<SymbolicReal, Object> realVars, final ProblemGeneral prob, final PathCondition pc) {
 		Set<Entry<SymbolicReal, Object>> sym_realvar_mappings;
 		Iterator<Entry<SymbolicReal, Object>> i_real;
 
@@ -268,14 +285,14 @@ public class SymbolicConstraintsGeneral {
 		// Solve the problem to get new ranges of values for the remaining
 		// variables.
 
-		Boolean isSolvable = true;
+		final Boolean isSolvable = true;
 		sym_realvar_mappings = realVars.entrySet();
 		i_real = sym_realvar_mappings.iterator();
 
 		while (i_real.hasNext() && isSolvable) {
-			Entry<SymbolicReal, Object> e = i_real.next();
-			SymbolicReal pcVar = e.getKey();
-			Object dpVar = e.getValue();
+			final Entry<SymbolicReal, Object> e = i_real.next();
+			final SymbolicReal pcVar = e.getKey();
+			final Object dpVar = e.getValue();
 
 			// Note: using solution_inf or solution_sup alone sometimes fails
 			// because of floating point inaccuracies
